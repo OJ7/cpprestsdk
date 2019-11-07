@@ -13,7 +13,6 @@ if(NOT WINDOWS_STORE AND NOT WINDOWS_PHONE)
     response_stream_tests.cpp
     status_code_reason_phrase_tests.cpp
     to_string_tests.cpp
-    stdafx.cpp
   )
 
   add_casablanca_test(httplistener_test SOURCES)
@@ -22,4 +21,6 @@ if(NOT WINDOWS_STORE AND NOT WINDOWS_PHONE)
   else()
     target_link_libraries(httplistener_test PRIVATE httptest_utilities)
   endif()
+
+  configure_pch(httplistener_test stdafx.h stdafx.cpp)
 endif()

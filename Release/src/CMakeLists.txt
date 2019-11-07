@@ -16,12 +16,13 @@ set(SOURCES
   ${HEADERS_DETAILS}
   pch/stdafx.h
   http/client/http_client.cpp
-  http/client/http_client_msg.cpp
   http/client/http_client_impl.h
-  http/client/x509_cert_utilities.cpp
-  http/common/internal_http_helpers.h
+  http/client/http_client_msg.cpp
+  http/common/connection_pool_helpers.h
+  http/common/http_compression.cpp
   http/common/http_helpers.cpp
   http/common/http_msg.cpp
+  http/common/internal_http_helpers.h
   http/listener/http_listener.cpp
   http/listener/http_listener_msg.cpp
   http/listener/http_server_api.cpp
@@ -31,7 +32,6 @@ set(SOURCES
   json/json.cpp
   json/json_parsing.cpp
   json/json_serialization.cpp
-  pplx/pplx.cpp
   uri/uri.cpp
   uri/uri_builder.cpp
   utilities/asyncrt_utils.cpp
@@ -67,16 +67,27 @@ elseif(CPPREST_WEBSOCKETS_IMPL STREQUAL "wspp")
   )
   cpprest_find_websocketpp()
   target_link_libraries(cpprest PRIVATE cpprestsdk_websocketpp_internal)
+  cpprest_find_boost()
+  cpprest_find_openssl()
+  target_link_libraries(cpprest PUBLIC cpprestsdk_boost_internal cpprestsdk_openssl_internal)
 else()
   message(FATAL_ERROR "Invalid implementation")
 endif()
 
 # Compression component
 if(CPPREST_EXCLUDE_COMPRESSION)
+  if(NOT CPPREST_EXCLUDE_BROTLI)
+    message(FATAL_ERROR "Use of Brotli requires compression to be enabled")
+  endif()
   target_compile_definitions(cpprest PRIVATE -DCPPREST_EXCLUDE_COMPRESSION=1)
 else()
   cpprest_find_zlib()
   target_link_libraries(cpprest PRIVATE cpprestsdk_zlib_internal)
+  if(CPPREST_EXCLUDE_BROTLI)
+    target_compile_definitions(cpprest PRIVATE -DCPPREST_EXCLUDE_BROTLI=1)
+  else()
+    cpprest_find_brotli()
+  endif()
 endif()
 
 # PPLX component
@@ -84,23 +95,26 @@ if(CPPREST_PPLX_IMPL STREQUAL "apple")
   find_library(COREFOUNDATION CoreFoundation "/")
   find_library(SECURITY Security "/")
   target_link_libraries(cpprest PUBLIC ${COREFOUNDATION} ${SECURITY})
-  target_sources(cpprest PRIVATE pplx/pplxapple.cpp pplx/threadpool.cpp ../include/pplx/threadpool.h)
+  target_sources(cpprest PRIVATE pplx/pplxapple.cpp pplx/pplx.cpp pplx/threadpool.cpp ../include/pplx/threadpool.h)
   if(CPPREST_INSTALL_HEADERS)
     install(FILES ../include/pplx/threadpool.h DESTINATION include/pplx)
   endif()
 elseif(CPPREST_PPLX_IMPL STREQUAL "linux")
-  target_sources(cpprest PRIVATE pplx/pplxlinux.cpp pplx/threadpool.cpp ../include/pplx/threadpool.h)
+  target_sources(cpprest PRIVATE pplx/pplxlinux.cpp pplx/pplx.cpp pplx/threadpool.cpp ../include/pplx/threadpool.h)
   if(CPPREST_INSTALL_HEADERS)
     install(FILES ../include/pplx/threadpool.h DESTINATION include/pplx)
   endif()
 elseif(CPPREST_PPLX_IMPL STREQUAL "win")
-  target_sources(cpprest PRIVATE pplx/pplxwin.cpp pplx/threadpool.cpp ../include/pplx/threadpool.h)
-  if(CPPREST_INSTALL_HEADERS)
-    install(FILES ../include/pplx/threadpool.h DESTINATION include/pplx)
+  target_sources(cpprest PRIVATE pplx/pplxwin.cpp)
+  if(CPPREST_WEBSOCKETS_IMPL STREQUAL "wspp")
+    target_sources(cpprest PRIVATE pplx/threadpool.cpp ../include/pplx/threadpool.h)
+    if(CPPREST_INSTALL_HEADERS)
+      install(FILES ../include/pplx/threadpool.h DESTINATION include/pplx)
+    endif()
   endif()
 elseif(CPPREST_PPLX_IMPL STREQUAL "winpplx")
   target_compile_definitions(cpprest PUBLIC -DCPPREST_FORCE_PPLX=1)
-  target_sources(cpprest PRIVATE pplx/pplxwin.cpp pplx/threadpool.cpp ../include/pplx/threadpool.h)
+  target_sources(cpprest PRIVATE pplx/pplxwin.cpp pplx/pplx.cpp pplx/threadpool.cpp ../include/pplx/threadpool.h)
   if(CPPREST_INSTALL_HEADERS)
     install(FILES ../include/pplx/threadpool.h DESTINATION include/pplx)
   endif()
@@ -115,14 +129,23 @@ if(CPPREST_HTTP_CLIENT_IMPL STREQUAL "asio")
   cpprest_find_boost()
   cpprest_find_openssl()
   target_compile_definitions(cpprest PUBLIC -DCPPREST_FORCE_HTTP_CLIENT_ASIO)
-  target_sources(cpprest PRIVATE http/client/http_client_asio.cpp)
+  target_sources(cpprest PRIVATE http/client/http_client_asio.cpp http/client/x509_cert_utilities.cpp)
   target_link_libraries(cpprest PUBLIC cpprestsdk_boost_internal cpprestsdk_openssl_internal)
+elseif(CPPREST_HTTP_CLIENT_IMPL STREQUAL "winhttppal")
+  cpprest_find_boost()
+  cpprest_find_openssl()
+  cpprest_find_winhttppal()
+  target_compile_definitions(cpprest PUBLIC -DCPPREST_FORCE_HTTP_CLIENT_WINHTTPPAL)
+  target_sources(cpprest PRIVATE http/client/http_client_winhttp.cpp http/client/x509_cert_utilities.cpp)
+  target_link_libraries(cpprest PUBLIC cpprestsdk_boost_internal cpprestsdk_openssl_internal cpprestsdk_winhttppal_internal)
 elseif(CPPREST_HTTP_CLIENT_IMPL STREQUAL "winhttp")
   target_link_libraries(cpprest PRIVATE
-    httpapi.lib
     Winhttp.lib
   )
   target_sources(cpprest PRIVATE http/client/http_client_winhttp.cpp)
+  if(CPPREST_WEBSOCKETS_IMPL STREQUAL "wspp")
+    target_sources(cpprest PRIVATE http/client/x509_cert_utilities.cpp)
+  endif()
 elseif(CPPREST_HTTP_CLIENT_IMPL STREQUAL "winrt")
   target_sources(cpprest PRIVATE http/client/http_client_winrt.cpp)
 else()
@@ -152,23 +175,15 @@ elseif(CPPREST_HTTP_LISTENER_IMPL STREQUAL "httpsys")
     http/listener/http_server_httpsys.cpp
     http/listener/http_server_httpsys.h
   )
+  target_link_libraries(cpprest PRIVATE
+    httpapi.lib
+  )
 elseif(CPPREST_HTTP_LISTENER_IMPL STREQUAL "none")
 else()
   message(FATAL_ERROR "Invalid implementation")
 endif()
 
-if(MSVC)
-  get_target_property(_srcs cpprest SOURCES)
-
-  if(NOT CMAKE_GENERATOR MATCHES "Visual Studio .*")
-    set_property(SOURCE pch/stdafx.cpp APPEND PROPERTY OBJECT_OUTPUTS "${CMAKE_CURRENT_BINARY_DIR}/stdafx.pch")
-    set_property(SOURCE ${_srcs} APPEND PROPERTY OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/stdafx.pch")
-  endif()
-
-  set_source_files_properties(pch/stdafx.cpp PROPERTIES COMPILE_FLAGS "/Ycstdafx.h")
-  target_sources(cpprest PRIVATE pch/stdafx.cpp)
-  target_compile_options(cpprest PRIVATE /Yustdafx.h /Zm200)
-endif()
+configure_pch(cpprest stdafx.h pch/stdafx.cpp /Zm120)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   if(WERROR)
@@ -229,7 +244,9 @@ endif()
 if(CPPREST_INSTALL)
   set(CPPREST_USES_BOOST OFF)
   set(CPPREST_USES_ZLIB OFF)
+  set(CPPREST_USES_BROTLI OFF)
   set(CPPREST_USES_OPENSSL OFF)
+  set(CPPREST_USES_WINHTTPPAL OFF)
 
   set(CPPREST_TARGETS cpprest)
   if(TARGET cpprestsdk_boost_internal)
@@ -240,9 +257,17 @@ if(CPPREST_INSTALL)
     list(APPEND CPPREST_TARGETS cpprestsdk_zlib_internal)
     set(CPPREST_USES_ZLIB ON)
   endif()
+  if(TARGET cpprestsdk_brotli_internal)
+    list(APPEND CPPREST_TARGETS cpprestsdk_brotli_internal)
+    set(CPPREST_USES_BROTLI ON)
+  endif()
   if(TARGET cpprestsdk_openssl_internal)
     list(APPEND CPPREST_TARGETS cpprestsdk_openssl_internal)
     set(CPPREST_USES_OPENSSL ON)
+  endif()
+  if(TARGET cpprestsdk_winhttppal_internal)
+    list(APPEND CPPREST_TARGETS cpprestsdk_winhttppal_internal)
+    set(CPPREST_USES_WINHTTPPAL ON)
   endif()
   if(TARGET cpprestsdk_websocketpp_internal)
     list(APPEND CPPREST_TARGETS cpprestsdk_websocketpp_internal)
@@ -250,21 +275,21 @@ if(CPPREST_INSTALL)
   install(
     TARGETS ${CPPREST_TARGETS}
     EXPORT cpprestsdk-targets
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   )
 
   configure_file(../cmake/cpprestsdk-config.in.cmake "${CMAKE_CURRENT_BINARY_DIR}/cpprestsdk-config.cmake" @ONLY)
 
   install(
     FILES "${CMAKE_CURRENT_BINARY_DIR}/cpprestsdk-config.cmake"
-    DESTINATION ${CPPREST_EXPORT_DIR}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/${CPPREST_EXPORT_DIR}
   )
   install(
     EXPORT cpprestsdk-targets
     FILE cpprestsdk-targets.cmake
     NAMESPACE cpprestsdk::
-    DESTINATION ${CPPREST_EXPORT_DIR}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/${CPPREST_EXPORT_DIR}
   )
 endif()

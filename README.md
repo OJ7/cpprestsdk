@@ -13,6 +13,8 @@ The C++ REST SDK is a Microsoft project for cloud-based client-server communicat
 [![openSUSE Tumbleweed package](https://repology.org/badge/version-for-repo/opensuse_tumbleweed/cpprestsdk.svg)](https://repology.org/metapackage/cpprestsdk)</br>
 [![Debian Testing package](https://repology.org/badge/version-for-repo/debian_testing/cpprestsdk.svg)](https://repology.org/metapackage/cpprestsdk)</br>
 
+[![Build Status](https://dev.azure.com/vclibs/cpprestsdk/_apis/build/status/Microsoft.cpprestsdk.Ubuntu)](https://dev.azure.com/vclibs/cpprestsdk/_build/latest?definitionId=1)
+
 With [vcpkg](https://github.com/Microsoft/vcpkg) on Windows
 ```
 PS> vcpkg install cpprestsdk cpprestsdk:x64-windows
@@ -20,6 +22,10 @@ PS> vcpkg install cpprestsdk cpprestsdk:x64-windows
 With [apt-get](https://launchpad.net/ubuntu/+source/casablanca/2.8.0-2build2) on Debian/Ubuntu
 ```
 $ sudo apt-get install libcpprest-dev
+```
+With [dnf](https://apps.fedoraproject.org/packages/cpprest) on Fedora
+```
+$ sudo dnf install cpprest-devel
 ```
 With [brew](https://github.com/Homebrew/homebrew-core/blob/master/Formula/cpprestsdk.rb) on OSX
 ```
@@ -49,7 +55,7 @@ target_link_libraries(main PRIVATE cpprestsdk::cpprest)
 *   Features - HTTP client/server, JSON, URI, asynchronous streams, WebSockets client, oAuth
 *   PPL Tasks - A powerful model for composing asynchronous operations based on C++ 11 features
 *   Platforms - Windows desktop, Windows Store (UWP), Linux, OS X, Unix, iOS, and Android
-*   Support for Visual Studio 2015 and 2017 with debugger visualizers
+*   Support for [Visual Studio 2015 and 2017](https://visualstudio.microsoft.com/) with debugger visualizers
 
 ## Contribute Back!
 
@@ -59,7 +65,7 @@ Big or small we'd like to take your [contributions](https://github.com/Microsoft
 
 ## Having Trouble?
 
-We'd love to get your review score, whether good or bad, but even more than that, we want to fix your problem. If you submit your issue as a Review, we won't be able to respond to your problem and ask any follow-up questions that may be necessary. The most efficient way to do that is to open a an issue in our [issue tracker](https://github.com/Microsoft/cpprestsdk/issues).  
+We'd love to get your review score, whether good or bad, but even more than that, we want to fix your problem. If you submit your issue as a Review, we won't be able to respond to your problem and ask any follow-up questions that may be necessary. The most efficient way to do that is to open an issue in our [issue tracker](https://github.com/Microsoft/cpprestsdk/issues).  
 
 ### Quick Links
 
@@ -69,3 +75,4 @@ We'd love to get your review score, whether good or bad, but even more than that
 *   Directly contact us: <askcasablanca@microsoft.com>
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+

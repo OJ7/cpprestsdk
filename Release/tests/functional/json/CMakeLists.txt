@@ -5,7 +5,6 @@ set(SOURCES
   to_as_and_operators_tests.cpp
   iterator_tests.cpp
   json_numbers_tests.cpp
-  stdafx.cpp
 )
 if(NOT WINDOWS_STORE AND NOT WINDOWS_PHONE)
   list(APPEND SOURCES fuzz_tests.cpp)
@@ -16,3 +15,5 @@ if(UNIX AND NOT APPLE)
   cpprest_find_boost()
   target_link_libraries(json_test PRIVATE cpprestsdk_boost_internal)
 endif()
+
+configure_pch(json_test stdafx.h stdafx.cpp)

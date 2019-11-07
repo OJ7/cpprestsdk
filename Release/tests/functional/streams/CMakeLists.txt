@@ -4,7 +4,6 @@ set(SOURCES
   memstream_tests.cpp
   ostream_tests.cpp
   stdstream_tests.cpp
-  stdafx.cpp
 )
 if(WINDOWS_STORE OR WINDOWS_PHONE)
   list(APPEND SOURCES winrt_interop_tests.cpp)
@@ -24,3 +23,5 @@ if(NOT WIN32 OR CPPREST_WEBSOCKETS_IMPL STREQUAL "wspp")
     target_include_directories(streams_test PRIVATE $<TARGET_PROPERTY:cpprestsdk_boost_internal,INTERFACE_INCLUDE_DIRECTORIES>)
   endif()
 endif()
+
+configure_pch(streams_test stdafx.h stdafx.cpp)
